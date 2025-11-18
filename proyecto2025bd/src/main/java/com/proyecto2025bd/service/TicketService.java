@@ -1,18 +1,32 @@
 package com.proyecto2025bd.service;
 
 import com.proyecto2025bd.db.ConnectionFactory;
+import com.proyecto2025bd.model.Technician;
+import com.proyecto2025bd.model.Ticket;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Logger;
+import java.util.logging.Level;
 
 public class TicketService {
+    private static final Logger logger = Logger.getLogger(TicketService.class.getName());
 
     // -----------------------------------------------------
     // Crear un ticket
     // -----------------------------------------------------
     public int createTicket(String title, String description, int priority) {
-        String sql = "INSERT INTO tickets(title, description, priority) VALUES (?, ?, ?) RETURNING id";
+        if (title == null || title.trim().isEmpty()) {
+            logger.log(Level.WARNING, "Título no puede ser nulo o vacío.");
+            return -1;
+        }
+        if (priority < 1 || priority > 3) {
+            logger.log(Level.WARNING, "Prioridad inválida: {0}. Debe ser 1, 2 o 3.", priority);
+            return -1;
+        }
+
+        String sql = "INSERT INTO tickets(titulo, descripcion, prioridad) VALUES (?, ?, ?) RETURNING id";
 
         try (Connection conn = ConnectionFactory.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -23,10 +37,12 @@ public class TicketService {
 
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                return rs.getInt(1);  // ID generado
+                int id = rs.getInt(1);
+                logger.log(Level.INFO, "Ticket creado con ID: {0}", id);
+                return id;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al crear ticket: ", e);
         }
 
         return -1; // error
@@ -36,7 +52,12 @@ public class TicketService {
     // -----------------------------------------------------
     // Obtener un ticket por ID
     // -----------------------------------------------------
-    public void getTicket(int id) {
+    public Ticket getTicket(int id) {
+        if (id <= 0) {
+            logger.log(Level.WARNING, "ID de ticket no válido: {0}", id);
+            return null;
+        }
+
         String sql = "SELECT * FROM tickets WHERE id = ?";
 
         try (Connection conn = ConnectionFactory.getConnection();
@@ -46,17 +67,22 @@ public class TicketService {
 
             ResultSet rs = stmt.executeQuery();
             if (rs.next()) {
-                System.out.println("ID: " + rs.getInt("id"));
-                System.out.println("Título: " + rs.getString("title"));
-                System.out.println("Descripción: " + rs.getString("description"));
-                System.out.println("Estado: " + rs.getString("status"));
-                System.out.println("Prioridad: " + rs.getInt("priority"));
-                System.out.println("Creado el: " + rs.getTimestamp("created_at"));
+                return new Ticket(
+                    rs.getInt("id"),
+                    rs.getString("titulo"),
+                    rs.getString("descripcion"),
+                    rs.getString("estado"),
+                    rs.getInt("prioridad"),
+                    rs.getTimestamp("creado_en"),
+                    rs.getTimestamp("actualizado_en")
+                );
             } else {
-                System.out.println("No existe el ticket");
+                logger.log(Level.WARNING, "No existe el ticket con ID: {0}", id);
+                return null;
             }
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al obtener ticket: ", e);
+            return null;
         }
     }
 
@@ -66,7 +92,16 @@ public class TicketService {
     // (El trigger guardará la auditoría automáticamente)
     // -----------------------------------------------------
     public boolean updateStatus(int ticketId, String newStatus) {
-        String sql = "UPDATE tickets SET status = ? WHERE id = ?";
+        if (ticketId <= 0) {
+            logger.log(Level.WARNING, "ID de ticket no válido: {0}", ticketId);
+            return false;
+        }
+        if (newStatus == null || !isValidStatus(newStatus)) {
+            logger.log(Level.WARNING, "Estado inválido: {0}", newStatus);
+            return false;
+        }
+
+        String sql = "UPDATE tickets SET estado = ? WHERE id = ?";
 
         try (Connection conn = ConnectionFactory.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -74,48 +109,91 @@ public class TicketService {
             stmt.setString(1, newStatus);
             stmt.setInt(2, ticketId);
 
-            return stmt.executeUpdate() > 0;
+            boolean success = stmt.executeUpdate() > 0;
+            if (success) {
+                logger.log(Level.INFO, "Estado del ticket {0} actualizado a: {1}", new Object[]{ticketId, newStatus});
+            }
+            return success;
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al actualizar estado del ticket: ", e);
             return false;
         }
     }
 
+    private boolean isValidStatus(String status) {
+        return "abierto".equals(status) || "asignado".equals(status) || "cerrado".equals(status) || "escalado".equals(status);
+    }
+
 
     // -----------------------------------------------------
-    // ASIGNAR TICKET (esta es la parte importante)
-    // Usa transacción y llama a la función assign_ticket()
+    // ASIGNAR TICKET (usando lógica directa en lugar de función)
     // -----------------------------------------------------
     public boolean assignTicket(int ticketId, int technicianId) {
-        String sql = "SELECT assign_ticket(?, ?)";
+        if (ticketId <= 0 || technicianId <= 0) {
+            logger.log(Level.WARNING, "IDs inválidos: ticketId={0}, technicianId={1}", new Object[]{ticketId, technicianId});
+            return false;
+        }
+
+        if (!isTechnicianActive(technicianId)) {
+            logger.log(Level.WARNING, "Técnico ID {0} no está activo o no existe.", technicianId);
+            return false;
+        }
+
+        String sql = """
+            INSERT INTO asignaciones_tickets (id_ticket, id_tecnico)
+            VALUES (?, ?)
+            ON CONFLICT (id_ticket)
+            DO UPDATE SET id_tecnico = ?, asignado_en = NOW()
+            """;
 
         try (Connection conn = ConnectionFactory.getConnection()) {
-            conn.setAutoCommit(false);  // iniciar transacción
+            boolean originalAutoCommit = conn.getAutoCommit();
+            conn.setAutoCommit(false);
 
             try (PreparedStatement stmt = conn.prepareStatement(sql)) {
                 stmt.setInt(1, ticketId);
                 stmt.setInt(2, technicianId);
+                stmt.setInt(3, technicianId);
 
-                ResultSet rs = stmt.executeQuery();
-                rs.next();
-                boolean ok = rs.getBoolean(1);
+                stmt.executeUpdate();
 
-                if (ok) {
-                    conn.commit();
-                    return true;
-                } else {
-                    conn.rollback();
-                    return false;
+                // Actualizar estado del ticket
+                String updateTicketSql = "UPDATE tickets SET estado = 'asignado' WHERE id = ?";
+                try (PreparedStatement updateStmt = conn.prepareStatement(updateTicketSql)) {
+                    updateStmt.setInt(1, ticketId);
+                    updateStmt.executeUpdate();
                 }
 
-            } catch (Exception e) {
+                conn.commit();
+                logger.log(Level.INFO, "Ticket {0} asignado al técnico {1}", new Object[]{ticketId, technicianId});
+                return true;
+
+            } catch (SQLException e) {
                 conn.rollback();
+                logger.log(Level.SEVERE, "Error en la transacción de asignación: ", e);
                 throw e;
+            } finally {
+                conn.setAutoCommit(originalAutoCommit);
             }
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al asignar ticket: ", e);
+            return false;
+        }
+    }
+
+    private boolean isTechnicianActive(int techId) {
+        String sql = "SELECT activo FROM tecnicos WHERE id = ?";
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, techId);
+            ResultSet rs = stmt.executeQuery();
+
+            return rs.next() && rs.getBoolean("activo");
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al verificar si técnico está activo: ", e);
             return false;
         }
     }
@@ -125,33 +203,35 @@ public class TicketService {
     // Cerrar ticket
     // -----------------------------------------------------
     public boolean closeTicket(int id) {
-        return updateStatus(id, "closed");
+        return updateStatus(id, "cerrado");
     }
 
 
     // -----------------------------------------------------
     // Listar todos los tickets
     // -----------------------------------------------------
-    public List<String> listTickets() {
-        List<String> list = new ArrayList<>();
-        String sql = "SELECT id, title, status, priority FROM tickets ORDER BY id";
+    public List<Ticket> listTickets() {
+        List<Ticket> list = new ArrayList<>();
+        String sql = "SELECT id, titulo, estado, prioridad, creado_en, actualizado_en FROM tickets ORDER BY id";
 
         try (Connection conn = ConnectionFactory.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
-                String line =
-                        "ID " + rs.getInt("id") +
-                        " | " + rs.getString("title") +
-                        " | Estado: " + rs.getString("status") +
-                        " | Prioridad: " + rs.getInt("priority");
-
-                list.add(line);
+                list.add(new Ticket(
+                    rs.getInt("id"),
+                    rs.getString("titulo"),
+                    null, // description no se incluye en el SELECT para este listado
+                    rs.getString("estado"),
+                    rs.getInt("prioridad"),
+                    rs.getTimestamp("creado_en"),
+                    rs.getTimestamp("actualizado_en")
+                ));
             }
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al listar tickets: ", e);
         }
 
         return list;
@@ -159,10 +239,84 @@ public class TicketService {
 
 
     // -----------------------------------------------------
+    // Listar tickets por técnico
+    // -----------------------------------------------------
+    public List<Ticket> listTicketsByTechnician(int techId) {
+        List<Ticket> list = new ArrayList<>();
+        String sql = """
+            SELECT t.id, t.titulo, t.estado, t.prioridad, t.creado_en, t.actualizado_en
+            FROM tickets t
+            JOIN asignaciones_tickets at ON t.id = at.id_ticket
+            WHERE at.id_tecnico = ?
+            ORDER BY t.creado_en DESC
+            """;
+
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, techId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                list.add(new Ticket(
+                    rs.getInt("id"),
+                    rs.getString("titulo"),
+                    null, // description
+                    rs.getString("estado"),
+                    rs.getInt("prioridad"),
+                    rs.getTimestamp("creado_en"),
+                    rs.getTimestamp("actualizado_en")
+                ));
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al listar tickets por técnico: ", e);
+        }
+
+        return list;
+    }
+
+
+    // -----------------------------------------------------
+    // Obtener técnico asignado actualmente a un ticket
+    // -----------------------------------------------------
+    public Technician getCurrentAssignedTechnician(int ticketId) {
+        String sql = """
+            SELECT t.id, t.nombre, t.activo
+            FROM tecnicos t
+            JOIN asignaciones_tickets at ON t.id = at.id_tecnico
+            WHERE at.id_ticket = ?
+            """;
+
+        try (Connection conn = ConnectionFactory.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, ticketId);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return new Technician(
+                    rs.getInt("id"),
+                    rs.getString("nombre"),
+                    rs.getBoolean("activo")
+                );
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al obtener técnico asignado: ", e);
+        }
+        return null;
+    }
+
+
+    // -----------------------------------------------------
     // Mostrar auditoría de un ticket
     // -----------------------------------------------------
     public void showAudit(int ticketId) {
-        String sql = "SELECT * FROM ticket_audit_log WHERE ticket_id = ? ORDER BY changed_at";
+        if (ticketId <= 0) {
+            logger.log(Level.WARNING, "ID de ticket no válido para auditoría: {0}", ticketId);
+            return;
+        }
+
+        String sql = "SELECT * FROM auditoria_tickets WHERE id_ticket = ? ORDER BY cambiado_en";
 
         try (Connection conn = ConnectionFactory.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -174,14 +328,14 @@ public class TicketService {
             System.out.println("=== Auditoría del ticket " + ticketId + " ===");
             while (rs.next()) {
                 System.out.println(
-                    rs.getTimestamp("changed_at") +
-                    " | " + rs.getString("old_status") +
-                    " → " + rs.getString("new_status")
+                    rs.getTimestamp("cambiado_en") +
+                    " | " + rs.getString("estado_anterior") +
+                    " → " + rs.getString("estado_nuevo")
                 );
             }
 
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al mostrar auditoría del ticket: ", e);
         }
     }
 }
