@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:16
+    container_name: sistema_tickets_db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"  # Opcional: para acceso externo (como desde tu IDE)
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build: .
+    container_name: proyecto2025bd_app
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: sistema_tickets_db
+      DB_USER: proyecto2025
+      DB_PASSWORD: proyecto2025
+    stdin_open: true   # Para entrada interactiva (Scanner)
+    tty: true          # Para mantener la terminal abierta
+
+volumes:
+  pgdata:

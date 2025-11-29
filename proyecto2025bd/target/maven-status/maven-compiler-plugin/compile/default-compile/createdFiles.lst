@@ -1,5 +1,6 @@
 com\proyecto2025bd\db\ConnectionFactory.class
 com\proyecto2025bd\service\TechnicianService.class
+com\proyecto2025bd\main.class
 com\proyecto2025bd\model\Technician.class
 com\proyecto2025bd\model\Ticket.class
 com\proyecto2025bd\service\TicketService.class
