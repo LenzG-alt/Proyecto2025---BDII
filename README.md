@@ -15,19 +15,6 @@ Sistema integral de gestión de tickets desarrollado con Java y PostgreSQL
 
 ---
 
-## 💻 Requisitos del Sistema
-
-### Software Requerido
-
-| Componente | Versión Mínima | Recomendada |
-|------------|----------------|-------------|
-| Java JDK | 17 | 21+ |
-| PostgreSQL | 13 | 16+ |
-| Maven | 3.8 | 3.9+ |
-| JavaFX | 17 | 21+ |
-
----
-
 ## Instalación y Configuración
 
 ### 1. Verificar Instalaciones
