@@ -52,7 +52,6 @@
     </plugins>
 </build>
 
-
   <dependencies>
     <dependency>
       <groupId>junit</groupId>
@@ -61,14 +60,12 @@
       <scope>test</scope>
     </dependency>
 
-    <!-- PostgreSQL JDBC -->
     <dependency>
         <groupId>org.postgresql</groupId>
         <artifactId>postgresql</artifactId>
         <version>42.7.3</version>
     </dependency>
 
-    <!-- JavaFX Controls -->
     <dependency>
       <groupId>org.openjfx</groupId>
       <artifactId>javafx-controls</artifactId>

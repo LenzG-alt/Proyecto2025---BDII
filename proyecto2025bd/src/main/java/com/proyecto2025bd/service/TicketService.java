@@ -140,42 +140,52 @@ public class TicketService {
             return false;
         }
 
-        String sql = """
+        String lockSql = "SELECT estado FROM tickets WHERE id = ? FOR UPDATE";
+        String assignSql = """
             INSERT INTO asignaciones_tickets (id_ticket, id_tecnico)
             VALUES (?, ?)
             ON CONFLICT (id_ticket)
             DO UPDATE SET id_tecnico = ?, asignado_en = NOW()
             """;
+        String updateStatusSql = "UPDATE tickets SET estado = 'asignado' WHERE id = ?";
 
         try (Connection conn = ConnectionFactory.getConnection()) {
-            boolean originalAutoCommit = conn.getAutoCommit();
             conn.setAutoCommit(false);
 
-            try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-                stmt.setInt(1, ticketId);
-                stmt.setInt(2, technicianId);
-                stmt.setInt(3, technicianId);
-
-                stmt.executeUpdate();
-
-                // Actualizar estado del ticket
-                String updateTicketSql = "UPDATE tickets SET estado = 'asignado' WHERE id = ?";
-                try (PreparedStatement updateStmt = conn.prepareStatement(updateTicketSql)) {
-                    updateStmt.setInt(1, ticketId);
-                    updateStmt.executeUpdate();
+            // 1. Bloquear y verificar estado actual
+            try (PreparedStatement lockStmt = conn.prepareStatement(lockSql)) {
+                lockStmt.setInt(1, ticketId);
+                ResultSet rs = lockStmt.executeQuery();
+                if (!rs.next()) {
+                    logger.log(Level.WARNING, "Ticket ID {0} no existe.", ticketId);
+                    conn.rollback();
+                    return false;
                 }
-
-                conn.commit();
-                logger.log(Level.INFO, "Ticket {0} asignado al técnico {1}", new Object[]{ticketId, technicianId});
-                return true;
-
-            } catch (SQLException e) {
-                conn.rollback();
-                logger.log(Level.SEVERE, "Error en la transacción de asignación: ", e);
-                throw e;
-            } finally {
-                conn.setAutoCommit(originalAutoCommit);
+                String currentStatus = rs.getString("estado");
+                if (!"abierto".equals(currentStatus)) {
+                    logger.log(Level.WARNING, "Ticket ID {0} no está en estado 'abierto' (estado actual: {1})", new Object[]{ticketId, currentStatus});
+                    conn.rollback();
+                    return false;
+                }
             }
+
+            // 2. Asignar
+            try (PreparedStatement assignStmt = conn.prepareStatement(assignSql)) {
+                assignStmt.setInt(1, ticketId);
+                assignStmt.setInt(2, technicianId);
+                assignStmt.setInt(3, technicianId);
+                assignStmt.executeUpdate();
+            }
+
+            // 3. Actualizar estado
+            try (PreparedStatement updateStmt = conn.prepareStatement(updateStatusSql)) {
+                updateStmt.setInt(1, ticketId);
+                updateStmt.executeUpdate();
+            }
+
+            conn.commit();
+            logger.log(Level.INFO, "Ticket {0} asignado al técnico {1}", new Object[]{ticketId, technicianId});
+            return true;
 
         } catch (SQLException e) {
             logger.log(Level.SEVERE, "Error al asignar ticket: ", e);
@@ -330,7 +340,7 @@ public class TicketService {
                 System.out.println(
                     rs.getTimestamp("cambiado_en") +
                     " | " + rs.getString("estado_anterior") +
-                    " → " + rs.getString("estado_nuevo")
+                    " -> " + rs.getString("estado_nuevo")
                 );
             }
 

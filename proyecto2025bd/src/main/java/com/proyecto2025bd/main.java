@@ -101,7 +101,8 @@ public class main {
                     "ID " + ticket.getId() +
                     " | Título: " + ticket.getTitle() +
                     " | Estado: " + ticket.getStatus() +
-                    " | Prioridad: " + ticket.getPriority()
+                    " | Prioridad: " + ticket.getPriority() +
+                    " | Creado en: " + ticket.getCreatedAt()
                 );
             }
         }
