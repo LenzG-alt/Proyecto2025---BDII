@@ -3,6 +3,7 @@ package com.proyecto2025bd.service;
 import com.proyecto2025bd.db.ConnectionFactory;
 import com.proyecto2025bd.model.Technician;
 import com.proyecto2025bd.model.Ticket;
+import com.proyecto2025bd.model.AuditEntry; 
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -10,8 +11,19 @@ import java.util.List;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
 public class TicketService {
     private static final Logger logger = Logger.getLogger(TicketService.class.getName());
+
+    // Ejecutor para tareas programadas (ej: escalamiento automático)
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+
+    public TicketService() {
+        System.out.println("TicketService initialized!");  // Mover aquí
+    }
 
     // -----------------------------------------------------
     // Crear un ticket
@@ -141,15 +153,12 @@ public class TicketService {
         }
 
         String lockSql = "SELECT estado FROM tickets WHERE id = ? FOR UPDATE";
-        String assignSql = """
-            INSERT INTO asignaciones_tickets (id_ticket, id_tecnico)
-            VALUES (?, ?)
-            ON CONFLICT (id_ticket)
-            DO UPDATE SET id_tecnico = ?, asignado_en = NOW()
-            """;
+        String assignSql = "INSERT INTO asignaciones_tickets (id_ticket, id_tecnico) VALUES (?, ?)";
         String updateStatusSql = "UPDATE tickets SET estado = 'asignado' WHERE id = ?";
 
-        try (Connection conn = ConnectionFactory.getConnection()) {
+        Connection conn = null;
+        try {
+            conn = ConnectionFactory.getConnection();
             conn.setAutoCommit(false);
 
             // 1. Bloquear y verificar estado actual
@@ -173,7 +182,6 @@ public class TicketService {
             try (PreparedStatement assignStmt = conn.prepareStatement(assignSql)) {
                 assignStmt.setInt(1, ticketId);
                 assignStmt.setInt(2, technicianId);
-                assignStmt.setInt(3, technicianId);
                 assignStmt.executeUpdate();
             }
 
@@ -189,6 +197,13 @@ public class TicketService {
 
         } catch (SQLException e) {
             logger.log(Level.SEVERE, "Error al asignar ticket: ", e);
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    logger.log(Level.SEVERE, "Error al hacer rollback: ", ex);
+                }
+            }
             return false;
         }
     }
@@ -251,40 +266,77 @@ public class TicketService {
     // -----------------------------------------------------
     // Listar tickets por técnico
     // -----------------------------------------------------
-    public List<Ticket> listTicketsByTechnician(int techId) {
-        List<Ticket> list = new ArrayList<>();
+    // public List<Ticket> listTicketsByTechnician(int techId) {
+    //     List<Ticket> list = new ArrayList<>();
+    //     String sql = """
+    //         SELECT t.id, t.titulo, t.estado, t.prioridad, t.creado_en, t.actualizado_en
+    //         FROM tickets t
+    //         JOIN asignaciones_tickets at ON t.id = at.id_ticket
+    //         WHERE at.id_tecnico = ?
+    //         ORDER BY t.creado_en DESC
+    //         """;
+
+    //     try (Connection conn = ConnectionFactory.getConnection();
+    //          PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+    //         stmt.setInt(1, techId);
+    //         ResultSet rs = stmt.executeQuery();
+
+    //         while (rs.next()) {
+    //             list.add(new Ticket(
+    //                 rs.getInt("id"),
+    //                 rs.getString("titulo"),
+    //                 null, // description
+    //                 rs.getString("estado"),
+    //                 rs.getInt("prioridad"),
+    //                 rs.getTimestamp("creado_en"),
+    //                 rs.getTimestamp("actualizado_en")
+    //             ));
+    //         }
+    //     } catch (SQLException e) {
+    //         logger.log(Level.SEVERE, "Error al listar tickets por técnico: ", e);
+    //     }
+
+    //     return list;
+    // }
+
+    public List<Ticket> listTicketsWithAssignedTechnician() {
+        List<Ticket> tickets = new ArrayList<>();
         String sql = """
-            SELECT t.id, t.titulo, t.estado, t.prioridad, t.creado_en, t.actualizado_en
+            SELECT 
+                t.id, t.titulo, t.descripcion, t.estado, t.prioridad, t.creado_en, t.actualizado_en,
+                tec.nombre AS tecnico_nombre
             FROM tickets t
-            JOIN asignaciones_tickets at ON t.id = at.id_ticket
-            WHERE at.id_tecnico = ?
-            ORDER BY t.creado_en DESC
+            LEFT JOIN asignaciones_tickets at ON t.id = at.id_ticket
+            LEFT JOIN tecnicos tec ON at.id_tecnico = tec.id
+            ORDER BY t.id
             """;
 
         try (Connection conn = ConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-
-            stmt.setInt(1, techId);
-            ResultSet rs = stmt.executeQuery();
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
-                list.add(new Ticket(
+                Ticket ticket = new Ticket(
                     rs.getInt("id"),
                     rs.getString("titulo"),
-                    null, // description
+                    rs.getString("descripcion"),
                     rs.getString("estado"),
                     rs.getInt("prioridad"),
                     rs.getTimestamp("creado_en"),
                     rs.getTimestamp("actualizado_en")
-                ));
+                );
+                // Asignar nombre del técnico (puede ser null → se mostrará como "—")
+                String techName = rs.getString("tecnico_nombre");
+                ticket.setAssignedTechnicianName(techName);
+
+                tickets.add(ticket);
             }
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Error al listar tickets por técnico: ", e);
+            logger.log(Level.SEVERE, "Error al listar tickets con técnico asignado: ", e);
         }
-
-        return list;
+        return tickets;
     }
-
 
     // -----------------------------------------------------
     // Obtener técnico asignado actualmente a un ticket
@@ -320,32 +372,88 @@ public class TicketService {
     // -----------------------------------------------------
     // Mostrar auditoría de un ticket
     // -----------------------------------------------------
-    public void showAudit(int ticketId) {
+    // En lugar de imprimir, devuelve una lista de auditorías
+    public List<AuditEntry> getAuditEntries(int ticketId) {
+        List<AuditEntry> entries = new ArrayList<>();
         if (ticketId <= 0) {
             logger.log(Level.WARNING, "ID de ticket no válido para auditoría: {0}", ticketId);
-            return;
+            return entries;
         }
 
         String sql = "SELECT * FROM auditoria_tickets WHERE id_ticket = ? ORDER BY cambiado_en";
 
         try (Connection conn = ConnectionFactory.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setInt(1, ticketId);
-
             ResultSet rs = stmt.executeQuery();
 
-            System.out.println("=== Auditoría del ticket " + ticketId + " ===");
             while (rs.next()) {
-                System.out.println(
-                    rs.getTimestamp("cambiado_en") +
-                    " | " + rs.getString("estado_anterior") +
-                    " -> " + rs.getString("estado_nuevo")
-                );
+                entries.add(new AuditEntry(
+                    rs.getInt("id_ticket"),
+                    rs.getString("estado_anterior"),
+                    rs.getString("estado_nuevo"),
+                    rs.getTimestamp("cambiado_en")
+                ));
             }
 
         } catch (SQLException e) {
-            logger.log(Level.SEVERE, "Error al mostrar auditoría del ticket: ", e);
+            logger.log(Level.SEVERE, "Error al obtener auditoría del ticket: ", e);
+        }
+        return entries;
+    }
+    // -----------------------------------------------------
+    // ESCALAMIENTO AUTOMÁTICO: tickets abiertos > 4 horas
+    // -----------------------------------------------------
+    public void escalateOverdueTickets() {
+        String sql = """
+            UPDATE tickets 
+            SET prioridad = GREATEST(1, prioridad - 1),  -- prioridad 1 es más alta
+                estado = CASE 
+                    WHEN prioridad <= 2 THEN 'escalado'
+                    ELSE estado
+                END
+            WHERE estado = 'abierto'
+            AND creado_en < NOW() - INTERVAL '3 minutes'
+            """;
+
+        try (Connection conn = ConnectionFactory.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            int updated = stmt.executeUpdate();
+            if (updated > 0) {
+                logger.log(Level.INFO, "Tickets escalados automáticamente: {0}", updated);
+            }
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Error al escalar tickets vencidos: ", e);
+        }
+    }
+
+    // -----------------------------------------------------
+    // Iniciar escalamiento automático (ejecuta cada 5 minutos)
+    // -----------------------------------------------------
+    public static void startAutoEscalation() {
+        System.out.println("🕒 Iniciando escalamiento automático (cada 5 minutos)...");
+        scheduler.scheduleAtFixedRate(() -> {
+            try {
+                // Creamos una instancia temporal solo para llamar al método no estático
+                new TicketService().escalateOverdueTickets();
+            } catch (Exception e) {
+                logger.log(Level.SEVERE, "Error en tarea programada de escalamiento: ", e);
+            }
+        }, 0, 3, TimeUnit.MINUTES); // Ejecuta inmediatamente y luego cada 5 minutos
+    }
+
+    public static void stopAutoEscalation() {
+        System.out.println("⏹️  Deteniendo escalamiento automático...");
+        scheduler.shutdown();
+        try {
+            if (!scheduler.awaitTermination(10, TimeUnit.SECONDS)) {
+                scheduler.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            scheduler.shutdownNow();
+            Thread.currentThread().interrupt();
         }
     }
 }

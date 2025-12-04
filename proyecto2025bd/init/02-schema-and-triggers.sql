@@ -35,6 +35,8 @@ CREATE TABLE auditoria_tickets (
 );
 
 CREATE INDEX idx_estado_prioridad_fecha_ticket ON tickets (estado, prioridad, creado_en);
+CREATE INDEX idx_asignaciones_ticket ON asignaciones_tickets (id_ticket);
+CREATE INDEX idx_asignaciones_tecnico ON asignaciones_tickets (id_tecnico);
 
 CREATE OR REPLACE FUNCTION registrar_cambio_estado_ticket()
 RETURNS TRIGGER AS $$

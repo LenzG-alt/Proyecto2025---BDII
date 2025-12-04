@@ -11,6 +11,8 @@ public class Ticket {
     private Timestamp createdAt;
     private Timestamp updatedAt;
 
+    private String assignedTechnicianName;
+
     public Ticket(int id, String title, String description, String status, int priority, Timestamp createdAt, Timestamp updatedAt) {
         this.id = id;
         this.title = title;
@@ -29,7 +31,15 @@ public class Ticket {
     public int getPriority() { return priority; }
     public Timestamp getCreatedAt() { return createdAt; }
     public Timestamp getUpdatedAt() { return updatedAt; }
+        // Getter
+    public String getAssignedTechnicianName() {
+        return assignedTechnicianName;
+    }
 
+    // Setter
+    public void setAssignedTechnicianName(String assignedTechnicianName) {
+        this.assignedTechnicianName = assignedTechnicianName;
+    }
     @Override
     public String toString() {
         return "Ticket{" +

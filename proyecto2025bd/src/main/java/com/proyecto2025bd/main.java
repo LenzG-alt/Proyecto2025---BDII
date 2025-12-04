@@ -15,6 +15,9 @@ public class main {
 
     public static void main(String[] args) {
         System.out.println("=== Sistema de Tickets ===");
+        TicketService.startAutoEscalation();
+        Runtime.getRuntime().addShutdownHook(new Thread(TicketService::stopAutoEscalation));
+
         boolean running = true;
 
         while (running) {

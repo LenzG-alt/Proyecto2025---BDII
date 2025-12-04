@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<TabPane fx:id="mainTabPane" xmlns="http://javafx.com/javafx/17" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.proyecto2025bd.ui.MainController">
+  <tabs>
+    <!-- Tickets Tab -->
+    <Tab text="Tickets">
+      <VBox spacing="10" style="-fx-padding: 10;">
+        <GridPane hgap="10" vgap="5">
+          <columnConstraints>
+            <ColumnConstraints hgrow="NEVER" minWidth="100"/>
+            <ColumnConstraints hgrow="ALWAYS"/>
+          </columnConstraints>
+          <Label text="Título:" GridPane.rowIndex="0" GridPane.columnIndex="0"/>
+          <TextField fx:id="ticketTitleField" GridPane.rowIndex="0" GridPane.columnIndex="1"/>
+
+          <Label text="Descripción:" GridPane.rowIndex="1" GridPane.columnIndex="0"/>
+          <TextArea fx:id="ticketDescField" prefRowCount="3" GridPane.rowIndex="1" GridPane.columnIndex="1"/>
+
+          <Label text="Prioridad:" GridPane.rowIndex="2" GridPane.columnIndex="0"/>
+          <ComboBox fx:id="ticketPriorityCombo" GridPane.rowIndex="2" GridPane.columnIndex="1"/>
+
+          <Label text="ID Ticket:" GridPane.rowIndex="3" GridPane.columnIndex="0"/>
+          <TextField fx:id="ticketIdField" GridPane.rowIndex="3" GridPane.columnIndex="1"/>
+
+          <Label text="Nuevo Estado:" GridPane.rowIndex="4" GridPane.columnIndex="0"/>
+          <TextField fx:id="statusField" promptText="abierto, asignado, cerrado o escalado" GridPane.rowIndex="4" GridPane.columnIndex="1"/>
+
+          <Label text="ID Técnico (asignar):" GridPane.rowIndex="5" GridPane.columnIndex="0"/>
+          <TextField fx:id="assignTechIdField" GridPane.rowIndex="5" GridPane.columnIndex="1"/>
+        </GridPane>
+
+        <HBox spacing="10">
+          <Button text="Crear Ticket" onAction="#handleCreateTicket"/>
+          <Button text="Ver Ticket" onAction="#handleGetTicket"/>
+          <Button text="Asignar" onAction="#handleAssignTicket"/>
+          <Button text="Cerrar" onAction="#handleCloseTicket"/>
+          <Button text="Auditoría" onAction="#handleShowAudit"/>
+          <Button text="Actualizar Estado" onAction="#handleUpdateStatus"/>
+        </HBox>
+
+        <TableView fx:id="ticketsTable" VBox.vgrow="ALWAYS">
+          <columns>
+            <TableColumn fx:id="ticketIdCol" text="ID" prefWidth="60"/>
+            <TableColumn fx:id="ticketTitleCol" text="Título" prefWidth="200"/>
+            <TableColumn fx:id="ticketStatusCol" text="Estado" prefWidth="100"/>
+            <TableColumn fx:id="ticketPriorityCol" text="Prioridad" prefWidth="80"/>
+            <TableColumn fx:id="ticketTechnicianCol" text="Técnico Asignado" prefWidth="150"/>
+            <TableColumn fx:id="ticketCreatedAtCol" text="Creado" prefWidth="150"/>
+          </columns>
+        </TableView>
+      </VBox>
+    </Tab>
+
+    <!-- Technicians Tab -->
+    <Tab text="Técnicos">
+      <VBox spacing="10" style="-fx-padding: 10;">
+        <HBox spacing="10">
+          <Label text="Nombre:"/>
+          <TextField fx:id="techNameField" prefWidth="200"/>
+          <Button text="Crear Técnico" onAction="#handleCreateTechnician"/>
+        </HBox>
+
+        <HBox spacing="10" alignment="CENTER_LEFT">
+          <Label text="ID Técnico:"/>
+          <TextField fx:id="toggleTechIdField" prefWidth="100"/>
+          <Button text="Activar/Desactivar" onAction="#handleToggleTechnician"/>
+        </HBox>
+
+        <TableView fx:id="techsTable" VBox.vgrow="ALWAYS">
+          <columns>
+            <TableColumn fx:id="techIdCol" text="ID" prefWidth="60"/>
+            <TableColumn fx:id="techNameCol" text="Nombre" prefWidth="200"/>
+            <TableColumn fx:id="techActiveCol" text="Activo" prefWidth="100"/>
+          </columns>
+        </TableView>
+      </VBox>
+    </Tab>
+  </tabs>
+</TabPane>

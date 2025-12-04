@@ -1,6 +1,8 @@
-C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\db\ConnectionFactory.java
-C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\main.java
+C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\model\AuditEntry.java
 C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\model\Technician.java
-C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\model\Ticket.java
-C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\service\TechnicianService.java
 C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\service\TicketService.java
+C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\model\Ticket.java
+C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\db\ConnectionFactory.java
+C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\App.java
+C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\service\TechnicianService.java
+C:\Users\Davis\proyecto2025bd\src\main\java\com\proyecto2025bd\ui\MainController.java
