@@ -45,76 +45,103 @@ cd proyecto2025bd
 
 ### 3. Configurar `pom.xml`
 ```xml
-<properties>
-    <maven.compiler.source>17</maven.compiler.source>
-    <maven.compiler.target>17</maven.compiler.target>
-</properties>
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+    </properties>
 
-<dependencies>
-    <!-- PostgreSQL JDBC -->
-    <dependency>
-        <groupId>org.postgresql</groupId>
-        <artifactId>postgresql</artifactId>
-        <version>42.7.3</version>
-    </dependency>
-    
-    <!-- JavaFX Controls -->
-    <dependency>
-        <groupId>org.openjfx</groupId>
-        <artifactId>javafx-controls</artifactId>
-        <version>17</version>
-    </dependency>
-</dependencies>
+    <build>
+        <plugins>
+            <!-- Plugin para la compilación de Java -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <release>17</release>
+                </configuration>
+            </plugin>
 
-<build>
-    <plugins>
-    
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.13.0</version>
-            <configuration>
-                <source>17</source>
-                <target>17</target>
-            </configuration>
-        </plugin>
+            <!-- Plugin para empaquetar la aplicación como JAR con dependencias -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.7.1</version>
+                <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                    <archive>
+                        <manifest>
+                            <mainClass>com.proyecto2025bd.App</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-assembly</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
 
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-assembly-plugin</artifactId>
-            <version>3.7.1</version>
-            <configuration>
-                <descriptorRefs>
-                    <descriptorRef>jar-with-dependencies</descriptorRef>
-                </descriptorRefs>
-                <archive>
-                    <manifest>
-                        <mainClass>com.proyecto2025bd.main</mainClass>
-                    </manifest>
-                </archive>
-            </configuration>
-            <executions>
-                <execution>
-                    <id>make-assembly</id>
-                    <phase>package</phase>
-                    <goals>
-                        <goal>single</goal>
-                    </goals>
-                </execution>
-            </executions>
-        </plugin>
+            <!-- Plugin para ejecutar JavaFX -->
+            <plugin>
+                <groupId>org.openjfx</groupId>
+                <artifactId>javafx-maven-plugin</artifactId>
+                <version>0.0.4</version>
+                <configuration>
+                    <mainClass>com.proyecto2025bd.App</mainClass>
+                    <platforms>
+                        <platform>win</platform> <!-- Usa 'win', 'mac', 'linux' según tu plataforma -->
+                    </platforms>
+                </configuration>
+            </plugin>
 
-        <!-- JavaFX Maven Plugin -->
-        <plugin>
+        </plugins>
+    </build>
+
+    <repositories>
+        <repository>
+            <id>openjfx</id>
+            <url>https://maven.openjfx.io</url>
+        </repository>
+    </repositories>
+
+    <dependencies>
+        <!-- Dependencia de JUnit para pruebas -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>3.8.1</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Dependencia de PostgreSQL -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.3</version>
+        </dependency>
+
+        <!-- Dependencias de JavaFX -->
+        <dependency>
             <groupId>org.openjfx</groupId>
-            <artifactId>javafx-maven-plugin</artifactId>
-            <version>0.0.9</version>
-            <configuration>
-                <mainClass>com.proyecto2025bd.App</mainClass>
-            </configuration>
-        </plugin>
-    </plugins>
-</build>
+            <artifactId>javafx-controls</artifactId>
+            <version>21</version> 
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-fxml</artifactId>
+            <version>21</version>
+        </dependency>
+
+    </dependencies>
 ```
 
 ### 4. Compilar el Proyecto
@@ -224,100 +251,6 @@ CREATE TABLE auditoria_tickets (
 -- Índice compuesto para consultas de SLA
 CREATE INDEX idx_estado_prioridad_fecha_ticket
 ON tickets (estado, prioridad, creado_en);
-```
-
----
-
-##  Funcionalidades 
-### 1. Asignación con Control de Concurrencia
-
-Función que garantiza asignación única mediante bloqueo pesimista.
-```sql
-CREATE OR REPLACE FUNCTION asignar_ticket(p_id_ticket INT, p_id_tecnico INT)
-RETURNS BOOLEAN AS $$
-DECLARE
-    t_estado VARCHAR(20);
-BEGIN
-    -- Bloqueo pesimista
-    SELECT estado INTO t_estado
-    FROM tickets
-    WHERE id = p_id_ticket
-    FOR UPDATE;
-    
-    -- Validar estado
-    IF t_estado <> 'abierto' THEN
-        RETURN FALSE;
-    END IF;
-    
-    -- Asignar ticket
-    INSERT INTO asignaciones_tickets(id_ticket, id_tecnico)
-    VALUES (p_id_ticket, p_id_tecnico);
-    
-    -- Actualizar estado
-    UPDATE tickets
-    SET estado = 'asignado'
-    WHERE id = p_id_ticket;
-    
-    RETURN TRUE;
-END;
-$$ LANGUAGE plpgsql;
-```
-
----
-
-## 📊 Consultas y Reportes
-
-### Tickets Dentro del SLA (≤30 min)
-```sql
-SELECT 
-    t.id,
-    t.titulo,
-    t.prioridad,
-    t.creado_en,
-    a.asignado_en,
-    EXTRACT(EPOCH FROM (a.asignado_en - t.creado_en)) / 60 AS minutos_respuesta
-FROM tickets t
-JOIN asignaciones_tickets a ON t.id = a.id_ticket
-WHERE (a.asignado_en - t.creado_en) <= INTERVAL '30 minutes'
-ORDER BY prioridad, creado_en;
-```
-
-### Tickets Fuera del SLA (>30 min)
-```sql
-SELECT 
-    t.id,
-    t.titulo,
-    t.prioridad,
-    t.creado_en,
-    a.asignado_en,
-    EXTRACT(EPOCH FROM (a.asignado_en - t.creado_en)) / 60 AS minutos_respuesta
-FROM tickets t
-JOIN asignaciones_tickets a ON t.id = a.id_ticket
-WHERE (a.asignado_en - t.creado_en) > INTERVAL '30 minutes'
-ORDER BY minutos_respuesta DESC;
-```
-
-### Dashboard de Métricas
-```sql
--- Resumen de tickets por estado
-SELECT estado, COUNT(*) as total
-FROM tickets
-GROUP BY estado;
-
--- Técnicos con más asignaciones
-SELECT 
-    tec.nombre,
-    COUNT(a.id) as tickets_asignados
-FROM tecnicos tec
-LEFT JOIN asignaciones_tickets a ON tec.id = a.id_tecnico
-GROUP BY tec.id, tec.nombre
-ORDER BY tickets_asignados DESC;
-
--- Tasa de cumplimiento de SLA
-SELECT 
-    COUNT(CASE WHEN (a.asignado_en - t.creado_en) <= INTERVAL '30 minutes' THEN 1 END) * 100.0 / COUNT(*) as cumplimiento_sla
-FROM tickets t
-JOIN asignaciones_tickets a ON t.id = a.id_ticket;
 ```
 
 ---
