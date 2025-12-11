@@ -96,7 +96,7 @@
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
-            <version>21</version> <!-- Usa la versión de JavaFX que prefieras -->
+            <version>21</version> 
         </dependency>
         <dependency>
             <groupId>org.openjfx</groupId>

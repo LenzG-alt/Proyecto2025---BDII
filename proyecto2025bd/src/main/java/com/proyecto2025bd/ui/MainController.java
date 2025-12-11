@@ -16,6 +16,7 @@ import javafx.scene.control.cell.PropertyValueFactory;
 import javafx.scene.layout.GridPane;
 import javafx.stage.Stage;
 
+import javafx.collections.transformation.FilteredList;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -52,8 +53,12 @@ public class MainController {
     @FXML private TextField toggleTechIdField;
     @FXML private TextField techNameField;
     @FXML private TextField statusField;
-    
-    private final ObservableList<Ticket> ticketData = FXCollections.observableArrayList();
+    @FXML private CheckBox showAssignedCheckbox;
+    @FXML private CheckBox showUnassignedCheckbox;
+
+
+    private final ObservableList<Ticket> masterTicketData = FXCollections.observableArrayList();
+    private FilteredList<Ticket> filteredTicketData;
     private final ObservableList<Technician> techData = FXCollections.observableArrayList();
 
     @FXML
@@ -70,6 +75,14 @@ public class MainController {
                     .orElse("N/A")
             )
         );
+        // Inicializar lista filtrada
+        filteredTicketData = new FilteredList<>(masterTicketData, p -> true);
+        
+
+        // Listeners para los checkboxes
+        showAssignedCheckbox.selectedProperty().addListener((obs, oldVal, newVal) -> applyFilters());
+        showUnassignedCheckbox.selectedProperty().addListener((obs, oldVal, newVal) -> applyFilters());
+
         ticketTechnicianCol.setCellValueFactory(cell ->
             new SimpleStringProperty(cell.getValue().getAssignedTechnicianName())
         );
@@ -80,7 +93,7 @@ public class MainController {
             new SimpleStringProperty(cell.getValue().isActive() ? "Sí" : "No")
         );
 
-        ticketsTable.setItems(ticketData);
+        ticketsTable.setItems(filteredTicketData);
         techsTable.setItems(techData);
 
         // Prioridades
@@ -311,13 +324,19 @@ public class MainController {
         }
     }
 
+    @FXML
+    private void handleClearFilters() {
+        showAssignedCheckbox.setSelected(false);
+        showUnassignedCheckbox.setSelected(false);
+    }
+
     // === UTILS ===
 
     private void loadAllTickets() {
-        ticketData.clear();
-        // ✅ Usar el nuevo método que incluye el técnico asignado
+        masterTicketData.clear();
         List<Ticket> tickets = ticketService.listTicketsWithAssignedTechnician();
-        ticketData.addAll(tickets);
+        masterTicketData.addAll(tickets);
+        applyFilters(); // Aplicar filtros tras recargar
     }
 
     private void loadAllTechnicians() {
@@ -338,5 +357,24 @@ public class MainController {
         alert.setHeaderText(null);
         alert.setContentText(content);
         alert.showAndWait();
+    }
+
+    private void applyFilters() {
+    filteredTicketData.setPredicate(ticket -> {
+        boolean showAssigned = showAssignedCheckbox.isSelected();
+        boolean showUnassigned = showUnassignedCheckbox.isSelected();
+
+        // Si ninguno está seleccionado → mostrar todos
+        if (!showAssigned && !showUnassigned) {
+            return true;
+        }
+
+        boolean isAssigned = !"—".equals(ticket.getAssignedTechnicianName());
+
+        if (showAssigned && isAssigned) return true;
+        if (showUnassigned && !isAssigned) return true;
+
+        return false;
+    });
     }
 }

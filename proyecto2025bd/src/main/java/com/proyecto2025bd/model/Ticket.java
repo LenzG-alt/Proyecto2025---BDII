@@ -32,10 +32,12 @@ public class Ticket {
     public Timestamp getCreatedAt() { return createdAt; }
     public Timestamp getUpdatedAt() { return updatedAt; }
         // Getter
+    // public String getAssignedTechnicianName() {
+    //     return assignedTechnicianName;
+    // }
     public String getAssignedTechnicianName() {
-        return assignedTechnicianName;
+    return assignedTechnicianName != null ? assignedTechnicianName : "—";
     }
-
     // Setter
     public void setAssignedTechnicianName(String assignedTechnicianName) {
         this.assignedTechnicianName = assignedTechnicianName;

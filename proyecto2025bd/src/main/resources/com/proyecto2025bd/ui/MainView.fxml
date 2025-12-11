@@ -41,6 +41,12 @@
           <Button text="Actualizar Estado" onAction="#handleUpdateStatus"/>
         </HBox>
 
+        <HBox spacing="15" style="-fx-padding: 0 0 10 0;">
+          <CheckBox fx:id="showAssignedCheckbox" text="Tickets asignados"/>
+          <CheckBox fx:id="showUnassignedCheckbox" text="Tickets no asignados"/>
+          <Button text="Limpiar filtros" onAction="#handleClearFilters"/>
+        </HBox>
+        
         <TableView fx:id="ticketsTable" VBox.vgrow="ALWAYS">
           <columns>
             <TableColumn fx:id="ticketIdCol" text="ID" prefWidth="60"/>
